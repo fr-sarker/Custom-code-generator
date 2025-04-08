@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Modified from https://github.com/kubernetes-sigs/kueue/blob/065451d907fa27a0647436505b3cac38718ef136/hack/update-codegen.sh
 # Apache-2.0, Copyright 2023 The Kubernetes Authors
+# Modified for CRD generation and controller installation
 
 set -o errexit
 set -o nounset
@@ -13,25 +13,17 @@ CODEGEN_PKG=$($GO_CMD list -m -f "{{.Dir}}" k8s.io/code-generator)
 
 cd $PKG_ROOT
 
+# Install controller-gen if not installed
+echo "Installing controller-gen..."
+go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
+
+# First, generate helpers and client code as before using the code-generator
 source "${CODEGEN_PKG}/kube_codegen.sh"
 
-# TODO: remove the workaround when the issue is solved in code-generator
-# (https://github.com/kubernetes/code-generator/issues/165).
-# kube_codegen.sh expects this layout:
-# .
-# └── github.com
-#     └── frsarker
-#         └── crd
-# We can use soft links in order to fake this layout, such that
-# ./github.com/frsarker/crd resolves to ././../codegen-demo, or ./.
-ln -s . github.com
-ln -s .. frsarker
-trap "rm github.com && rm frsarker" EXIT
-
+# Generate the client code (if needed)
 kube::codegen::gen_helpers \
   --boilerplate /dev/null \
   "${PKG_ROOT}/pkg/apis"
-
 
 kube::codegen::gen_client \
   --output-dir "${PKG_ROOT}/pkg/generated" \
@@ -41,6 +33,13 @@ kube::codegen::gen_client \
   --with-applyconfig \
   "${PKG_ROOT}/pkg/apis"
 
-
-# clean up temporary libraries added in go.mod by code-generator
+# Clean up temporary libraries added in go.mod by code-generator
 "${GO_CMD}" mod tidy
+
+# Automatically generate the CRD manifest from your Go types
+echo "Generating CRD manifest from Go types..."
+controller-gen crd:crdVersions=v1 paths=./pkg/apis/frsarker.dev/v1 output:crd:dir=./
+# Optionally, expose the controller via a service (if needed)
+# kubectl expose deployment <controller-deployment-name> --type=LoadBalancer --name=<service-name>
+
+echo "Controller installation complete!"
