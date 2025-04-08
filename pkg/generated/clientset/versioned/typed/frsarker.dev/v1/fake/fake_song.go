@@ -12,10 +12,10 @@ import (
 // fakeSongs implements SongInterface
 type fakeSongs struct {
 	*gentype.FakeClientWithListAndApply[*v1.Song, *v1.SongList, *frsarkerdevv1.SongApplyConfiguration]
-	Fake *FakeFrsarkerV1
+	Fake *FakeMusicV1
 }
 
-func newFakeSongs(fake *FakeFrsarkerV1, namespace string) typedfrsarkerdevv1.SongInterface {
+func newFakeSongs(fake *FakeMusicV1, namespace string) typedfrsarkerdevv1.SongInterface {
 	return &fakeSongs{
 		gentype.NewFakeClientWithListAndApply[*v1.Song, *v1.SongList, *frsarkerdevv1.SongApplyConfiguration](
 			fake.Fake,

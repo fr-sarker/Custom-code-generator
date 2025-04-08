@@ -238,9 +238,9 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
-	Frsarker() frsarkerdev.Interface
+	Music() frsarkerdev.Interface
 }
 
-func (f *sharedInformerFactory) Frsarker() frsarkerdev.Interface {
+func (f *sharedInformerFactory) Music() frsarkerdev.Interface {
 	return frsarkerdev.New(f, f.namespace, f.tweakListOptions)
 }

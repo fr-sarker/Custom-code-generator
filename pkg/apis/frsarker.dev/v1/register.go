@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const GroupName = "frsarker.dev"
+const GroupName = "music.frsarker.dev"
 
 // SchemeGroupVersion is a group version used to register these objects
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: "v1"}

@@ -10,24 +10,24 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type FrsarkerV1Interface interface {
+type MusicV1Interface interface {
 	RESTClient() rest.Interface
 	SongsGetter
 }
 
-// FrsarkerV1Client is used to interact with features provided by the frsarker.dev group.
-type FrsarkerV1Client struct {
+// MusicV1Client is used to interact with features provided by the music.frsarker.dev group.
+type MusicV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *FrsarkerV1Client) Songs(namespace string) SongInterface {
+func (c *MusicV1Client) Songs(namespace string) SongInterface {
 	return newSongs(c, namespace)
 }
 
-// NewForConfig creates a new FrsarkerV1Client for the given config.
+// NewForConfig creates a new MusicV1Client for the given config.
 // NewForConfig is equivalent to NewForConfigAndClient(c, httpClient),
 // where httpClient was generated with rest.HTTPClientFor(c).
-func NewForConfig(c *rest.Config) (*FrsarkerV1Client, error) {
+func NewForConfig(c *rest.Config) (*MusicV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -39,9 +39,9 @@ func NewForConfig(c *rest.Config) (*FrsarkerV1Client, error) {
 	return NewForConfigAndClient(&config, httpClient)
 }
 
-// NewForConfigAndClient creates a new FrsarkerV1Client for the given config and http client.
+// NewForConfigAndClient creates a new MusicV1Client for the given config and http client.
 // Note the http client provided takes precedence over the configured transport values.
-func NewForConfigAndClient(c *rest.Config, h *http.Client) (*FrsarkerV1Client, error) {
+func NewForConfigAndClient(c *rest.Config, h *http.Client) (*MusicV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -50,12 +50,12 @@ func NewForConfigAndClient(c *rest.Config, h *http.Client) (*FrsarkerV1Client, e
 	if err != nil {
 		return nil, err
 	}
-	return &FrsarkerV1Client{client}, nil
+	return &MusicV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new FrsarkerV1Client for the given config and
+// NewForConfigOrDie creates a new MusicV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *FrsarkerV1Client {
+func NewForConfigOrDie(c *rest.Config) *MusicV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -63,9 +63,9 @@ func NewForConfigOrDie(c *rest.Config) *FrsarkerV1Client {
 	return client
 }
 
-// New creates a new FrsarkerV1Client for the given RESTClient.
-func New(c rest.Interface) *FrsarkerV1Client {
-	return &FrsarkerV1Client{c}
+// New creates a new MusicV1Client for the given RESTClient.
+func New(c rest.Interface) *MusicV1Client {
+	return &MusicV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -83,7 +83,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FrsarkerV1Client) RESTClient() rest.Interface {
+func (c *MusicV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

@@ -5,8 +5,8 @@ package fake
 import (
 	applyconfiguration "github.com/frsarker/crd/pkg/generated/applyconfiguration"
 	clientset "github.com/frsarker/crd/pkg/generated/clientset/versioned"
-	frsarkerv1 "github.com/frsarker/crd/pkg/generated/clientset/versioned/typed/frsarker.dev/v1"
-	fakefrsarkerv1 "github.com/frsarker/crd/pkg/generated/clientset/versioned/typed/frsarker.dev/v1/fake"
+	musicv1 "github.com/frsarker/crd/pkg/generated/clientset/versioned/typed/frsarker.dev/v1"
+	fakemusicv1 "github.com/frsarker/crd/pkg/generated/clientset/versioned/typed/frsarker.dev/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -100,7 +100,7 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// FrsarkerV1 retrieves the FrsarkerV1Client
-func (c *Clientset) FrsarkerV1() frsarkerv1.FrsarkerV1Interface {
-	return &fakefrsarkerv1.FakeFrsarkerV1{Fake: &c.Fake}
+// MusicV1 retrieves the MusicV1Client
+func (c *Clientset) MusicV1() musicv1.MusicV1Interface {
+	return &fakemusicv1.FakeMusicV1{Fake: &c.Fake}
 }

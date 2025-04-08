@@ -31,8 +31,9 @@ type SongList struct {
 
 // SongSpec is the spec of a Song resource.
 type SongSpec struct {
-	Title  string   `json:"title"`
-	Artist string   `json:"artist"`
-	Rating int      `json:"rating,omitempty"`
-	Genres []string `json:"genres,omitempty"`
+	Title    string   `json:"title"`
+	Artist   string   `json:"artist"`
+	Rating   int      `json:"rating,omitempty"`
+	Genres   []string `json:"genres,omitempty"`
+	Replicas int32    `json:"replicas"`
 }

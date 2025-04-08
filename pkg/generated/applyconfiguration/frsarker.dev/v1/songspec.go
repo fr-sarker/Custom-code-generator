@@ -5,10 +5,11 @@ package v1
 // SongSpecApplyConfiguration represents a declarative configuration of the SongSpec type for use
 // with apply.
 type SongSpecApplyConfiguration struct {
-	Title  *string  `json:"title,omitempty"`
-	Artist *string  `json:"artist,omitempty"`
-	Rating *int     `json:"rating,omitempty"`
-	Genres []string `json:"genres,omitempty"`
+	Title    *string  `json:"title,omitempty"`
+	Artist   *string  `json:"artist,omitempty"`
+	Rating   *int     `json:"rating,omitempty"`
+	Genres   []string `json:"genres,omitempty"`
+	Replicas *int32   `json:"replicas,omitempty"`
 }
 
 // SongSpecApplyConfiguration constructs a declarative configuration of the SongSpec type for use with
@@ -48,5 +49,13 @@ func (b *SongSpecApplyConfiguration) WithGenres(values ...string) *SongSpecApply
 	for i := range values {
 		b.Genres = append(b.Genres, values[i])
 	}
+	return b
+}
+
+// WithReplicas sets the Replicas field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Replicas field is set to the value of the last call.
+func (b *SongSpecApplyConfiguration) WithReplicas(value int32) *SongSpecApplyConfiguration {
+	b.Replicas = &value
 	return b
 }
