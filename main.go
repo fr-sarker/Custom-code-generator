@@ -46,10 +46,11 @@ func main() {
 			Name: "my-custom-song", // Name of the Song resource
 		},
 		Spec: musicv1.SongSpec{
-			Title:  "Shape of You",  // Example title
-			Artist: "Ed Sheeran",    // Example artist
-			Rating: 5,               // Example rating
-			Genres: []string{"Pop"}, // Example genres
+			Title:    "Shape of You",  // Example title
+			Artist:   "Ed Sheeran",    // Example artist
+			Rating:   5,               // Example rating
+			Genres:   []string{"Pop"}, // Example genres
+			Replicas: 4,
 		},
 	}
 
