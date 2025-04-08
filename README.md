@@ -1,10 +1,11 @@
-Kluster
+`Create CRD`
+`$ kubectl apply -f crd.yaml`
 
-`frsarker.dev`
-`v1alpha1`
+`now run code`
+`$ go run main.go`
 
-`generate`
-1. `deep copy object`
-2. `clientset`
-3. `informers`
-4. `lister`
+`Necessary Command`
+`$ kubectl get crds #get the crds
+$ kubectl get songs #get the cr(song)
+$ kubectl get songs.music.frsarker.dev my-custom-song -n default -o yaml #Detailed information of existing cr
+`

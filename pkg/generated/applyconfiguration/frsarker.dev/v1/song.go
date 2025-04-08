@@ -23,7 +23,7 @@ func Song(name, namespace string) *SongApplyConfiguration {
 	b.WithName(name)
 	b.WithNamespace(namespace)
 	b.WithKind("Song")
-	b.WithAPIVersion("frsarker.dev/v1")
+	b.WithAPIVersion("music.frsarker.dev/v1")
 	return b
 }
 

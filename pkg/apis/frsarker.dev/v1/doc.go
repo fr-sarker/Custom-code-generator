@@ -1,5 +1,5 @@
-//  +k8s:deepcopy-gen=package
-// +k8s:defaulter-gen=TypeMeta
-// +groupName=frsarker.dev
+// +k8s:deepcopy-gen=package
 
+// Package v1 is the v1 version of the API.
+// +groupName=music.frsarker.dev
 package v1

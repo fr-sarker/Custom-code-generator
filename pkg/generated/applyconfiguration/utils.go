@@ -15,7 +15,7 @@ import (
 // apply configuration type exists for the given GroupVersionKind.
 func ForKind(kind schema.GroupVersionKind) interface{} {
 	switch kind {
-	// Group=frsarker.dev, Version=v1
+	// Group=music.frsarker.dev, Version=v1
 	case v1.SchemeGroupVersion.WithKind("Song"):
 		return &frsarkerdevv1.SongApplyConfiguration{}
 	case v1.SchemeGroupVersion.WithKind("SongSpec"):

@@ -40,7 +40,7 @@ type songs struct {
 }
 
 // newSongs returns a Songs
-func newSongs(c *FrsarkerV1Client, namespace string) *songs {
+func newSongs(c *MusicV1Client, namespace string) *songs {
 	return &songs{
 		gentype.NewClientWithListAndApply[*frsarkerdevv1.Song, *frsarkerdevv1.SongList, *applyconfigurationfrsarkerdevv1.SongApplyConfiguration](
 			"songs",

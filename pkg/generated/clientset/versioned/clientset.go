@@ -6,7 +6,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	frsarkerv1 "github.com/frsarker/crd/pkg/generated/clientset/versioned/typed/frsarker.dev/v1"
+	musicv1 "github.com/frsarker/crd/pkg/generated/clientset/versioned/typed/frsarker.dev/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -14,18 +14,18 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	FrsarkerV1() frsarkerv1.FrsarkerV1Interface
+	MusicV1() musicv1.MusicV1Interface
 }
 
 // Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	frsarkerV1 *frsarkerv1.FrsarkerV1Client
+	musicV1 *musicv1.MusicV1Client
 }
 
-// FrsarkerV1 retrieves the FrsarkerV1Client
-func (c *Clientset) FrsarkerV1() frsarkerv1.FrsarkerV1Interface {
-	return c.frsarkerV1
+// MusicV1 retrieves the MusicV1Client
+func (c *Clientset) MusicV1() musicv1.MusicV1Interface {
+	return c.musicV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -72,7 +72,7 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
-	cs.frsarkerV1, err = frsarkerv1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	cs.musicV1, err = musicv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.frsarkerV1 = frsarkerv1.New(c)
+	cs.musicV1 = musicv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
