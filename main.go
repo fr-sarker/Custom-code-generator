@@ -1,18 +1,14 @@
 package main
 
 import (
-	"bufio"
-	"context"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
+	"time"
 
-	// Importing the generated clientset and API group
-	musicv1 "github.com/frsarker/crd/pkg/apis/frsarker.dev/v1"            // Your generated API group (adjust if needed)
+	"github.com/frsarker/crd/pkg/Controllers"                             // Adjust the import path based on your project structure
 	clientset "github.com/frsarker/crd/pkg/generated/clientset/versioned" // Your generated clientset
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "github.com/frsarker/crd/pkg/generated/informers/externalversions"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 )
@@ -37,71 +33,24 @@ func main() {
 		panic(err)
 	}
 
-	// Use the correct client for your custom Song CRD
-	songClient := client.MusicV1().Songs("default") // Replace with the desired namespace
+	// Create the shared informer factory
+	informerFactory := v1.NewSharedInformerFactory(client, time.Second*30)
 
-	// Create a new Song resource
-	song := &musicv1.Song{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "my-custom-song", // Name of the Song resource
-		},
-		Spec: musicv1.SongSpec{
-			Title:    "Shape of You",  // Example title
-			Artist:   "Ed Sheeran",    // Example artist
-			Rating:   5,               // Example rating
-			Genres:   []string{"Pop"}, // Example genres
-			Replicas: 4,
-		},
-	}
+	// Create the custom controller
+	songInformer := informerFactory.Music().V1().Songs()
+	controller := Controller.NewController(songInformer)
 
-	// Create the Song resource
-	fmt.Println("Creating Song resource...")
-	created, err := songClient.Create(context.TODO(), song, metav1.CreateOptions{})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Created Song resource %q.\n", created.GetName())
+	// Create a channel to signal the stop of the controller
+	stopCh := make(chan struct{})
+	defer close(stopCh)
 
-	// Update Song resource (for demonstration)
-	prompt()
-	fmt.Println("Updating Song resource...")
+	// Start the controller in a separate goroutine
+	go controller.Run(2, stopCh) // 2 is the number of worker threads (you can adjust as needed)
 
-	// Modify some spec fields (for example)
-	created.Spec.Rating = 4 // Change rating to 4
+	// Start the informer factory
+	informerFactory.Start(stopCh)
 
-	updated, err := songClient.Update(context.TODO(), created, metav1.UpdateOptions{})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Updated Song resource %q with rating %d.\n", updated.GetName(), updated.Spec.Rating)
-
-	// List Songs in the namespace
-	prompt()
-	fmt.Println("Listing Song resources...")
-	songList, err := songClient.List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		panic(err)
-	}
-	for _, s := range songList.Items {
-		fmt.Printf(" - %s (Artist: %s, Rating: %d)\n", s.Name, s.Spec.Artist, s.Spec.Rating)
-	}
-
-	// Delete the Song resource
-	prompt()
-	fmt.Println("Deleting Song resource...")
-	err = songClient.Delete(context.TODO(), "my-custom-song", metav1.DeleteOptions{})
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Deleted Song resource.")
-}
-
-func prompt() {
-	fmt.Print("Please type Enter to proceed: ")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-	fmt.Println()
+	// Wait for the shutdown signal
+	<-stopCh
+	fmt.Println("Shutting down the controller")
 }
