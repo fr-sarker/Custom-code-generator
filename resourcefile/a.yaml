@@ -4,6 +4,6 @@ metadata:
   name: my-favourite-song
   namespace: default
 spec:
-  replicas: 1
-  title: "Shape of You"
-  artist: "Ed Sheeran"
+  replicas: 3
+  title: "Shape-of-You"
+  artist: "Ed-Sheeran"

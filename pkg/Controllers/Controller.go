@@ -1,106 +1,311 @@
 package Controller
 
 import (
+	"context"
 	"fmt"
-	v1 "github.com/frsarker/crd/pkg/generated/informers/externalversions/frsarker.dev/v1"
+	v1alpha1 "github.com/frsarker/crd/pkg/apis/frsarker.dev/v1"
+	//v1 "github.com/frsarker/crd/pkg/generated/applyconfiguration/frsarker.dev/v1"
+	clientset "github.com/frsarker/crd/pkg/generated/clientset/versioned"
+	informers "github.com/frsarker/crd/pkg/generated/informers/externalversions/frsarker.dev/v1"
 	songlisters "github.com/frsarker/crd/pkg/generated/listers/frsarker.dev/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	appsinformer "k8s.io/client-go/informers/apps/v1"
+	"k8s.io/client-go/kubernetes"
+	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"log"
 	"time"
 )
 
 type Controller struct {
-	// To check if the internal cache synced fully or not
-
-	HasSynced cache.InformerSynced
-
-	// Read Only source of truth for cluster state
-
-	Lister songlisters.SongLister
-
-	// WorkQueue to keep track of what’s going in the controller
-
-	Queue workqueue.TypedRateLimitingInterface[string]
+	kubeclientset     kubernetes.Interface
+	myclientset       clientset.Interface
+	deploymentsLister appslisters.DeploymentLister
+	deploymentsSynced cache.InformerSynced
+	songLister        songlisters.SongLister
+	songSynced        cache.InformerSynced
+	workqueue         workqueue.TypedRateLimitingInterface[interface{}]
+	recorder          record.EventRecorder
 }
 
-func NewController(song v1.SongInformer) *Controller {
+func NewController(
+	kubeclientset kubernetes.Interface,
+	myclientset clientset.Interface,
+	deploymentInformer appsinformer.DeploymentInformer,
+	songInformer informers.SongInformer) *Controller {
+
 	c := &Controller{
-		HasSynced: song.Informer().HasSynced,
-		Lister:    song.Lister(),
-		Queue:     workqueue.NewTypedRateLimitingQueue[string](workqueue.DefaultTypedControllerRateLimiter[string]()),
+		kubeclientset:     kubeclientset,
+		myclientset:       myclientset,
+		deploymentsLister: deploymentInformer.Lister(),
+		deploymentsSynced: deploymentInformer.Informer().HasSynced,
+		songLister:        songInformer.Lister(),
+		songSynced:        songInformer.Informer().HasSynced,
+		workqueue:         workqueue.NewTypedRateLimitingQueue[interface{}](workqueue.DefaultTypedControllerRateLimiter[interface{}]()),
 	}
-	song.Informer().AddEventHandler(
-		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    c.HandleAdd,
-			UpdateFunc: c.HandleUpdate,
-			DeleteFunc: c.HandleDelete,
+	log.Println("setting up event handlers")
+	songInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: c.enqueSong,
+		UpdateFunc: func(old, new interface{}) {
+			c.enqueSong(new)
 		},
-	)
+		DeleteFunc: func(obj interface{}) {
+			c.enqueSong(obj)
+		},
+	})
 	return c
 }
 
-func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) {
-	defer utilruntime.HandleCrash()
-	defer c.Queue.ShutDown()
-	fmt.Println("Starting Song controller")
-
-	if !cache.WaitForCacheSync(stopCh, c.HasSynced) {
-		fmt.Println("Timed out waiting for caches to sync")
+func (c *Controller) enqueSong(obj interface{}) {
+	log.Println("enqueuing song")
+	key, err := cache.MetaNamespaceKeyFunc(obj)
+	if err != nil {
+		log.Println("error getting key: ", err)
 		return
 	}
-	fmt.Println("Caches synced")
+	c.workqueue.AddRateLimited(key)
+}
 
-	for i := 0; i < threadiness; i++ {
-		go wait.Until(c.runWorker, 1*time.Second, stopCh)
+func (c *Controller) Run(stopCh <-chan struct{}) error {
+	defer utilruntime.HandleCrash()
+	defer c.workqueue.ShutDown()
+
+	log.Println("Starting Song controller")
+
+	log.Println("Waiting for informer caches to sync")
+	if ok := cache.WaitForCacheSync(stopCh, c.deploymentsSynced, c.songSynced); !ok {
+		return fmt.Errorf("failed to wait for cache to sync")
 	}
+	log.Println("Starting workers")
+
+	log.Println("Starting workers")
+	go wait.Until(c.runWorker, time.Second, stopCh)
 	<-stopCh
-	fmt.Println("Stopping Song controller")
+	log.Println("Shutting down workers")
+	return nil
 }
 
 func (c *Controller) runWorker() {
-	fmt.Println("Starting worker thread")
-	for c.processNextItem() {
+	for c.ProcessNextItem() {
 
 	}
 }
-func (c *Controller) processNextItem() bool {
-	item, quit := c.Queue.Get()
-	if quit {
+
+func (c *Controller) ProcessNextItem() bool {
+	obj, shutdown := c.workqueue.Get()
+	if shutdown {
 		return false
 	}
+	fmt.Println("work queue:", obj)
+	err := func(obj interface{}) error {
+		defer c.workqueue.Done(obj)
+		var key string
+		var ok bool
+		if key, ok = obj.(string); !ok {
+			c.workqueue.Forget(obj)
+			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
+			return nil
+		}
 
-	defer c.Queue.Done(item)
-	key, err := cache.MetaNamespaceKeyFunc(item)
-	if err == nil {
-		fmt.Println("Processing key:", key)
-	}
-	song, err := c.Lister.Songs("default").Get(key)
-	if err == nil {
-		fmt.Println("Processing song:", song.Name)
+		if err := c.syncHandler(key); err != nil {
+			c.workqueue.AddRateLimited(key)
+			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
+		}
+		c.workqueue.Forget(obj)
+		log.Printf("Successfully synced", "resourceName", key)
+		return nil
+	}(obj)
+	if err != nil {
+		utilruntime.HandleError(err)
+		return true
 	}
 	return true
 }
 
-func (c *Controller) HandleAdd(obj interface{}) {
-	fmt.Println("Adding song:", obj)
-	key, err := cache.MetaNamespaceKeyFunc(obj)
-	if err == nil {
-		c.Queue.Add(key)
+// syncHandler compares the actual state with the desired, and attempts to
+// converge the two. It then updates the Status block of the Song resource
+// with the current status of the resource.
+// implement the business logic here.
+
+func (c *Controller) syncHandler(key string) error {
+	// Convert the namespace/name string into a distinct namespace and name
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
+		return nil
+	}
+	song, err := c.songLister.Songs(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			utilruntime.HandleError(fmt.Errorf("song '%s' in work queue no longer exists", key))
+			return nil
+		}
+		return err
+	}
+
+	deploymentName := song.Name + "-deployment"
+	log.Printf("Deployments Name '%s'", deploymentName)
+	if deploymentName == "" {
+		// We choose to absorb the error here as the worker would requeue the
+		// resource otherwise. Instead, the next time the resource is updated
+		// the resource will be queued again.
+		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
+		return nil
+	}
+	// Get the deployment with the name specified in song.spec
+	deployment, err := c.deploymentsLister.Deployments(deploymentName).Get(deploymentName)
+	// If the resource doesn't exist, we'll create it
+	if errors.IsNotFound(err) {
+		deployment, err = c.kubeclientset.AppsV1().Deployments(song.Namespace).Create(context.TODO(), NewDeployment(song), metav1.CreateOptions{})
+	}
+	// If an error occurs during Get/Create, we'll requeue the item, so we can
+	// attempt processing again later. This could have been caused by a
+	// temporary network failure, or any other transient reason.
+	if err != nil {
+		fmt.Errorf("error syncing song: %s", err.Error())
+		return err
+	}
+	// If this number of the replicas on the song resource is specified, and the
+	// number does not equal the current desired replicas on the Deployment, we
+	// should update the Deployment resource.
+
+	if song.Spec.Replicas != 0 && song.Spec.Replicas != *deployment.Spec.Replicas {
+		log.Printf("song %s replicas: %d, deployment replicas: %d\n", name, song.Spec.Replicas, *deployment.Spec.Replicas)
+		deployment, err = c.kubeclientset.AppsV1().Deployments(song.Namespace).Create(context.TODO(), NewDeployment(song), metav1.CreateOptions{})
+		// If an error occurs during Update, we'll requeue the item, so we can
+		// attempt processing again later. This could have been caused by a
+		// temporary network failure, or any other transient reason.
+		if err != nil {
+			return err
+		}
+	}
+	// Finally, we update the status block of the song resource to reflect the
+	// current state of the world
+
+	err = c.updateSongCodeStatus(song, deployment)
+	if err != nil {
+		return err
+	}
+
+	serviceName := song.Name + "-service"
+	// Check if the Service is already exists or not
+	service, err := c.kubeclientset.CoreV1().Services(song.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+
+	fmt.Println(service)
+	if errors.IsNotFound(err) {
+		service, err := c.kubeclientset.CoreV1().Services(namespace).Create(context.TODO(), NewService(song), metav1.CreateOptions{})
+		if err != nil {
+			return err
+		}
+		log.Printf("Service '%s' created", service.Name)
+	} else if err != nil {
+		log.Println(err)
+	}
+
+	_, err = c.kubeclientset.CoreV1().Services(song.Namespace).Update(context.TODO(), service, metav1.UpdateOptions{})
+
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) updateSongCodeStatus(song *v1alpha1.Song, deployment *appsv1.Deployment) error {
+	// NEVER modify objects from the store. It's a read-only, local cache.
+	// You can use DeepCopy() to make a deep copy of original object and modify this copy
+	// Or create a copy manually for better performance
+	songCopy := song.DeepCopy()
+	songCopy.Status.AvailableReplicas = deployment.Status.AvailableReplicas
+
+	// If the CustomResourceSubresources feature gate is not enabled,
+	// we must use Update instead of UpdateStatus to update the Status block of the Song resource.
+	// UpdateStatus will not allow changes to the Spec of the resource,
+	// which is ideal for ensuring nothing other than resource status has been updated.
+
+	_, err := c.myclientset.MusicV1().Songs(song.Namespace).Update(context.TODO(), songCopy, metav1.UpdateOptions{})
+
+	return err
+}
+
+func NewDeployment(song *v1alpha1.Song) *appsv1.Deployment {
+	labels := map[string]string{
+		"app":    song.Name,
+		"artist": song.Spec.Artist,
+		"title":  song.Spec.Title,
+	}
+
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      song.Name,
+			Namespace: song.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(song, v1alpha1.SchemeGroupVersion.WithKind("Song")),
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &song.Spec.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "song-container",
+							Image: song.Spec.Title, // assuming title is the image name
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 8080,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 }
-func (c *Controller) HandleUpdate(old, new interface{}) {
-	fmt.Println("Updating song:", new)
-	key, err := cache.MetaNamespaceKeyFunc(new)
-	if err == nil {
-		c.Queue.Add(key)
+func NewService(song *v1alpha1.Song) *corev1.Service {
+	labels := map[string]string{
+		"app":   song.Name,
+		"title": song.Spec.Title,
 	}
-}
-func (c *Controller) HandleDelete(obj interface{}) {
-	fmt.Println("Deleting song:", obj)
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
-	if err == nil {
-		c.Queue.Add(key)
+
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      song.Name + "-service",
+			Namespace: song.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(song, v1alpha1.SchemeGroupVersion.WithKind("Song")),
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: labels,
+			Type:     corev1.ServiceTypeNodePort,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http",
+					Port:       80,
+					TargetPort: intstr.FromInt32(8080),
+					Protocol:   corev1.ProtocolTCP,
+				},
+			},
+		},
 	}
 }
