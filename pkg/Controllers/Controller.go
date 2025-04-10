@@ -46,10 +46,10 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) {
 	defer c.Queue.ShutDown()
 	fmt.Println("Starting Song controller")
 
-	//if !cache.WaitForCacheSync(stopCh, c.HasSynced) {
-	//	fmt.Println("Timed out waiting for caches to sync")
-	//	return
-	//}
+	if !cache.WaitForCacheSync(stopCh, c.HasSynced) {
+		fmt.Println("Timed out waiting for caches to sync")
+		return
+	}
 	fmt.Println("Caches synced")
 
 	for i := 0; i < threadiness; i++ {
@@ -67,12 +67,9 @@ func (c *Controller) runWorker() {
 }
 func (c *Controller) processNextItem() bool {
 	item, quit := c.Queue.Get()
-	fmt.Println(item)
 	if quit {
 		return false
 	}
-
-	println(item)
 
 	defer c.Queue.Done(item)
 	key, err := cache.MetaNamespaceKeyFunc(item)
