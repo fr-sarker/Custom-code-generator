@@ -1,9 +1,9 @@
 apiVersion: music.frsarker.dev/v1
 kind: Song
 metadata:
-  name: my-favourite-song
+  name: my-favourite-song2
   namespace: default
 spec:
   replicas: 2
-  title: "Shape-of-You"
-  artist: "Ed-Sheeran"
+  title: "To-JO-MILA"
+  artist: "Atif-Alsam"

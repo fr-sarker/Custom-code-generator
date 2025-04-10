@@ -151,20 +151,13 @@ func (c *Controller) syncHandler(key string) error {
 		return err
 	}
 
-	deploymentName := song.Name + "-deployment"
-	log.Printf("Deployments Name '%s'", deploymentName)
-	if deploymentName == "" {
-		// We choose to absorb the error here as the worker would requeue the
-		// resource otherwise. Instead, the next time the resource is updated
-		// the resource will be queued again.
-		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
-		return nil
-	}
+	desireDeployment := NewDeployment(song)
+	log.Printf("Deployments Created '%s'", desireDeployment.Name)
 	// Get the deployment with the name specified in song.spec
-	deployment, err := c.deploymentsLister.Deployments(deploymentName).Get(deploymentName)
+	deployment, err := c.kubeclientset.AppsV1().Deployments(song.Namespace).Get(context.TODO(), desireDeployment.Name, metav1.GetOptions{})
 	// If the resource doesn't exist, we'll create it
 	if errors.IsNotFound(err) {
-		deployment, err = c.kubeclientset.AppsV1().Deployments(song.Namespace).Create(context.TODO(), NewDeployment(song), metav1.CreateOptions{})
+		_, err = c.kubeclientset.AppsV1().Deployments(song.Namespace).Create(context.TODO(), NewDeployment(song), metav1.CreateOptions{})
 	}
 	// If an error occurs during Get/Create, we'll requeue the item, so we can
 	// attempt processing again later. This could have been caused by a
@@ -172,49 +165,46 @@ func (c *Controller) syncHandler(key string) error {
 	if err != nil {
 		fmt.Errorf("error syncing song: %s", err.Error())
 		return err
+	} else {
+		// Exists: update if needed (optional: deep equality check)
+		desireDeployment.ResourceVersion = deployment.ResourceVersion
+		_, err = c.kubeclientset.AppsV1().Deployments(song.Namespace).Update(context.TODO(), desireDeployment, metav1.UpdateOptions{})
+		log.Printf("Deployment '%s' updated", desireDeployment.Name)
 	}
 	// If this number of the replicas on the song resource is specified, and the
 	// number does not equal the current desired replicas on the Deployment, we
 	// should update the Deployment resource.
 
-	if song.Spec.Replicas != 0 && song.Spec.Replicas != *deployment.Spec.Replicas {
-		log.Printf("song %s replicas: %d, deployment replicas: %d\n", name, song.Spec.Replicas, *deployment.Spec.Replicas)
-		deployment, err = c.kubeclientset.AppsV1().Deployments(song.Namespace).Create(context.TODO(), NewDeployment(song), metav1.CreateOptions{})
-		// If an error occurs during Update, we'll requeue the item, so we can
-		// attempt processing again later. This could have been caused by a
-		// temporary network failure, or any other transient reason.
-		if err != nil {
-			return err
-		}
-	}
-	// Finally, we update the status block of the song resource to reflect the
-	// current state of the world
-
+	// Update Song status
+	deployment, _ = c.kubeclientset.AppsV1().Deployments(song.Namespace).Get(context.TODO(), desireDeployment.Name, metav1.GetOptions{})
 	err = c.updateSongCodeStatus(song, deployment)
 	if err != nil {
 		return err
 	}
+	// Finally, we update the status block of the song resource to reflect the
+	// current state of the world
 
 	serviceName := song.Name + "-service"
-	// Check if the Service is already exists or not
-	service, err := c.kubeclientset.CoreV1().Services(song.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	desiredService := NewService(song)
 
-	fmt.Println(service)
+	service, err := c.kubeclientset.CoreV1().Services(song.Namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		service, err := c.kubeclientset.CoreV1().Services(namespace).Create(context.TODO(), NewService(song), metav1.CreateOptions{})
+		_, err = c.kubeclientset.CoreV1().Services(song.Namespace).Create(context.TODO(), desiredService, metav1.CreateOptions{})
 		if err != nil {
 			return err
 		}
-		log.Printf("Service '%s' created", service.Name)
+		log.Printf("Service '%s' created", serviceName)
 	} else if err != nil {
-		log.Println(err)
-	}
-
-	_, err = c.kubeclientset.CoreV1().Services(song.Namespace).Update(context.TODO(), service, metav1.UpdateOptions{})
-
-	if err != nil {
-		log.Println(err)
 		return err
+	} else {
+		// Update (Note: ClusterIP is immutable, so reuse it)
+		desiredService.ResourceVersion = service.ResourceVersion
+		desiredService.Spec.ClusterIP = service.Spec.ClusterIP
+		_, err = c.kubeclientset.CoreV1().Services(song.Namespace).Update(context.TODO(), desiredService, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+		log.Printf("Service '%s' updated", serviceName)
 	}
 
 	return nil
