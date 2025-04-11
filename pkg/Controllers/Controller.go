@@ -25,6 +25,8 @@ import (
 	"time"
 )
 
+const songFinalizer = "finalizer.frsarker.dev"
+
 type Controller struct {
 	kubeclientset     kubernetes.Interface
 	myclientset       clientset.Interface
@@ -148,6 +150,40 @@ func (c *Controller) syncHandler(key string) error {
 			utilruntime.HandleError(fmt.Errorf("song '%s' in work queue no longer exists", key))
 			return nil
 		}
+		return err
+	}
+
+	// ----- Handle Deletion -----
+	if song.ObjectMeta.DeletionTimestamp != nil {
+		if containsString(song.Finalizers, songFinalizer) {
+			log.Printf("Cleaning up resources for song '%s'", song.Name)
+
+			// CLEANUP: delete Deployment and Service
+			err := c.kubeclientset.AppsV1().Deployments(song.Namespace).Delete(context.TODO(), song.Name, metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+
+			err = c.kubeclientset.CoreV1().Services(song.Namespace).Delete(context.TODO(), song.Name+"-service", metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				return err
+			}
+
+			// REMOVE finalizer
+			songCopy := song.DeepCopy()
+			songCopy.Finalizers = removeString(songCopy.Finalizers, songFinalizer)
+			_, err = c.myclientset.MusicV1().Songs(song.Namespace).Update(context.TODO(), songCopy, metav1.UpdateOptions{})
+			return err
+		}
+		return nil
+	}
+
+	// ----- Add Finalizer if not present -----
+	if !containsString(song.Finalizers, songFinalizer) {
+		fmt.Printf("Ading finalizer for song '%s'\n", song.Name)
+		songCopy := song.DeepCopy()
+		songCopy.Finalizers = append(songCopy.Finalizers, songFinalizer)
+		_, err = c.myclientset.MusicV1().Songs(song.Namespace).Update(context.TODO(), songCopy, metav1.UpdateOptions{})
 		return err
 	}
 
@@ -298,4 +334,23 @@ func NewService(song *v1alpha1.Song) *corev1.Service {
 			},
 		},
 	}
+}
+
+func containsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+func removeString(slice []string, s string) []string {
+	result := []string{}
+	for _, item := range slice {
+		if item != s {
+			result = append(result, item)
+		}
+	}
+	return result
 }

@@ -6,4 +6,4 @@ metadata:
 spec:
   replicas: 2
   title: "Shape-of-You"
-  artist: "Ed-Sheeran"
+  artist: "Ed-Sheeran" 
