@@ -57,9 +57,11 @@ func NewController(
 	songInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: c.enqueSong,
 		UpdateFunc: func(old, new interface{}) {
+			fmt.Println("update fun called ........>>>>>>>>")
 			c.enqueSong(new)
 		},
 		DeleteFunc: func(obj interface{}) {
+			fmt.Println("Delete fun called ........>>>>>>>>")
 			c.enqueSong(obj)
 		},
 	})
