@@ -14,7 +14,8 @@ type Song struct {
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec SongSpec `json:"spec"`
+	Spec   SongSpec   `json:"spec"`
+	Status SongStatus `json:"status,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -36,4 +37,7 @@ type SongSpec struct {
 	Rating   int      `json:"rating,omitempty"`
 	Genres   []string `json:"genres,omitempty"`
 	Replicas int32    `json:"replicas"`
+}
+type SongStatus struct {
+	AvailableReplicas int32 `json:"availableReplicas"`
 }
